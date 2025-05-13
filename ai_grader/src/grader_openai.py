@@ -1,16 +1,19 @@
-import openai
 import pandas as pd
 import random
+import openai
 
-openai.api_key = open("src/key.txt").read().strip()
+# Read the OpenAI API key from a file
+with open("openai_key.txt", "r") as key_file:
+    openai.api_key = key_file.read().strip()
 
 filepath = "src/database.csv"
 df = pd.read_csv(filepath)
 before_learning_indexes = random.sample(range(0, 20), 5)
 before_learning_results = {}
 
-# Function to grade a student answer using OpenAI gpt-3.5-turbo
-def grade_with_gpt(question, model_answers, student_answer):
+
+# Function to grade a student answer using OpenAI ChatGPT
+def grade_with_openai(question, model_answers, student_answer):
     model_answers_str = "\n".join([f"- {ans}" for ans in model_answers])
     prompt = f"""
 You are an expert C++ grader. Grade the student's answer using the scale 0 to 10.
@@ -29,21 +32,21 @@ Respond with:
 Grade: X
 Feedback: Y
 """
-    response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.3
-    )
-    reply = response['choices'][0]['message']['content']
     try:
-        lines = reply.strip().split('\n')
-        grade_line = [line for line in lines if "Grade:" in line][0]
-        feedback_line = [line for line in lines if "Feedback:" in line][0]
-        grade = grade_line.split(":")[1].strip()
-        feedback = feedback_line.split(":")[1].strip()
-    except:
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",  # or "gpt-4" if preferred
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.0
+        )
+        reply = response['choices'][0]['message']['content'].strip()
+        lines = reply.split("\n")
+        grade_line = next(line for line in lines if "Grade:" in line)
+        feedback_line = next(line for line in lines if "Feedback:" in line)
+        grade = grade_line.split(":", 1)[1].strip()
+        feedback = feedback_line.split(":", 1)[1].strip()
+    except Exception as e:
         grade = "?"
-        feedback = "Could not parse response"
+        feedback = f"Could not parse response: {e}"
     return grade, feedback
 
 # Grade 5 random questions BEFORE learning
@@ -53,7 +56,7 @@ for i in before_learning_indexes:
     question = row['Question']
     student_answer = row['Student Answer']
     model_answers = [row[f"Model Answer {j}"] for j in range(1, 6)]
-    grade, feedback = grade_with_gpt(question, model_answers, student_answer)
+    grade, feedback = grade_with_openai(question, model_answers, student_answer)
     before_learning_results[i] = grade
     print(f"Question = {question}")
     print(f"Student answer = {student_answer}")
@@ -67,7 +70,7 @@ for i in learn_indexes:
     question = row['Question']
     student_answer = row['Student Answer']
     model_answers = [row[f"Model Answer {j}"] for j in range(1, 6)]
-    _ = grade_with_gpt(question, model_answers, student_answer)
+    _ = grade_with_openai(question, model_answers, student_answer)
 
 # Grade the SAME 5 questions AGAIN after learning
 print("\n--- Grading AFTER Learning ---\n")
@@ -77,7 +80,7 @@ for i in before_learning_indexes:
     question = row['Question']
     student_answer = row['Student Answer']
     model_answers = [row[f"Model Answer {j}"] for j in range(1, 6)]
-    grade, feedback = grade_with_gpt(question, model_answers, student_answer)
+    grade, feedback = grade_with_openai(question, model_answers, student_answer)
     after_learning_results[i] = grade
     print(f"Question = {question}")
     print(f"Student answer = {student_answer}")
